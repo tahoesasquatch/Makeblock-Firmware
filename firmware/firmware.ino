@@ -12,28 +12,13 @@
 #include <Servo.h>
 #include <Wire.h>
 #include "MePort.h"
-#include "MeServo.h" 
 #include "MeDCMotor.h" 
 #include "MeUltrasonic.h" 
-#include "MeGyro.h"
-#include "Me7SegmentDisplay.h"
-#include "MeTemperature.h"
-#include "MeRGBLed.h"
-#include "MeInfraredReceiver.h"
-#include "MeStepper.h"
-//#include "MeEncoderMotor.h"
 
-Servo servo;  
 MeDCMotor dc;
-MeTemperature ts;
-MeRGBLed led;
 MeUltrasonic us;
-Me7SegmentDisplay seg;
 MePort generalDevice;
-MeInfraredReceiver ir;
-MeGyro gyro;
-MeStepper steppers[2];
-//MeEncoderMotor encoders[2];
+
 typedef struct MeModule
 {
     int device;
@@ -65,7 +50,7 @@ int analogs[12]={A0,A1,A2,A3,A4,A5,A6,A7,A8,A9,A10,A11};
 #else
 int analogs[8]={A0,A1,A2,A3,A4,A5,A6,A7};
 #endif
-String mVersion = "1.1.102";
+String mVersion = "2.0.001";
 boolean isAvailable = false;
 boolean isBluetooth = false;
 
@@ -125,33 +110,12 @@ void setup(){
   #if defined(__AVR_ATmega32U4__) 
     Serial1.begin(115200);
   #endif
-//  delay(500);
-//  buzzerOn();
-//  delay(100);
-//  buzzerOff();
-  
-  steppers[0] = MeStepper();
-  steppers[1] = MeStepper();
-//  encoders[0] = MeEncoderMotor(SLOT_1);
-//  encoders[1] = MeEncoderMotor(SLOT_2);
-//  encoders[0].begin();
-//  encoders[1].begin();
-//  delay(500);
-//  encoders[0].runSpeed(0);
-//  encoders[1].runSpeed(0);
 }
-void loop(){
-  currentTime = millis()/1000.0-lastTime;
-  if(ir.buttonState()==1){ 
-    if(ir.available()>0){
-      irRead = ir.read();
-    }
-  }else{
-    irRead = 0;
-  }
+void loop() {
+  
+
   readSerial();
-  steppers[0].run();
-  steppers[1].run();
+
   if(isAvailable){
     unsigned char c = serialRead&0xff;
     if(c==0x55&&isStart==false){
@@ -259,8 +223,6 @@ void parseData(){
         dc.run(0);
         dc.reset(PORT_2);
         dc.run(0);
-//        encoders[0].runSpeed(0);
-//        encoders[1].runSpeed(0);
         callOK();
       }
      break;
@@ -337,97 +299,6 @@ void runModule(int device){
      dc.run(speed);
    } 
     break;
-    case STEPPER:{
-     valShort.byteVal[0] = readBuffer(7);
-     valShort.byteVal[1] = readBuffer(8);
-     int maxSpeed = valShort.shortVal;
-     valShort.byteVal[0] = readBuffer(9);
-     valShort.byteVal[1] = readBuffer(10);
-     int distance = valShort.shortVal;
-     if(port==PORT_1){
-      steppers[0] = MeStepper(PORT_1);
-      steppers[0].setMaxSpeed(maxSpeed);
-      steppers[0].moveTo(distance);
-     }else if(port==PORT_2){
-      steppers[1] = MeStepper(PORT_2);
-      steppers[1].setMaxSpeed(maxSpeed);
-      steppers[1].moveTo(distance);
-     }
-   } 
-    break;
-    case ENCODER:{
-      valShort.byteVal[0] = readBuffer(7);
-      valShort.byteVal[1] = readBuffer(8);
-      int maxSpeed = valShort.shortVal;
-      valShort.byteVal[0] = readBuffer(9);
-      valShort.byteVal[1] = readBuffer(10);
-      int distance = valShort.shortVal;
-      int slot = port;
-//      if(slot==SLOT_1){
-//         encoders[0].move(distance,maxSpeed);
-//      }else if(slot==SLOT_2){
-//         encoders[1].move(distance,maxSpeed);
-//      }
-    }
-    break;
-   case RGBLED:{
-     int idx = readBuffer(7);
-     int r = readBuffer(8);
-     int g = readBuffer(9);
-     int b = readBuffer(10);
-     led.reset(port);
-     if(idx>0){
-       led.setColorAt(idx-1,r,g,b); 
-     }else{
-        led.setColor(r,g,b); 
-     }
-     led.show();
-   }
-   break;
-   case SERVO:{
-     int slot = readBuffer(7);
-     pin = slot==1?mePort[port].s1:mePort[port].s2;
-     int v = readBuffer(8);
-     if(v>=0&&v<=180){
-       servo.attach(pin);
-       servo.write(v);
-     }
-   }
-   break;
-   case SEVSEG:{
-     if(seg.getPort()!=port){
-       seg.reset(port);
-     }
-     float v = readFloat(7);
-     seg.display(v);
-   }
-   break;
-   case LIGHT_SENSOR:{
-     if(generalDevice.getPort()!=port){
-       generalDevice.reset(port);
-     }
-     int v = readBuffer(7);
-     generalDevice.dWrite1(v);
-   }
-   break;
-   case SHUTTER:{
-     if(generalDevice.getPort()!=port){
-       generalDevice.reset(port);
-     }
-     int v = readBuffer(7);
-     if(v<2){
-       generalDevice.dWrite1(v);
-     }else{
-       generalDevice.dWrite2(v-2);
-     }
-   }
-   break;
-   case DIGITAL:{
-     pinMode(pin,OUTPUT);
-     int v = readBuffer(7);
-     digitalWrite(pin,v);
-   }
-   break;
    case PWM:{
      pinMode(pin,OUTPUT);
      int v = readBuffer(7);
@@ -443,18 +314,6 @@ void runModule(int device){
      }else{
        noTone(pin); 
      }
-   }
-   break;
-   case SERVO_PIN:{
-     int v = readBuffer(7);
-     if(v>=0&&v<=180){
-       servo.attach(pin);
-       servo.write(v);
-     }
-   }
-   break;
-   case TIMER:{
-    lastTime = millis()/1000.0; 
    }
    break;
   }
@@ -475,117 +334,6 @@ void readSensor(int device){
      }
      value = us.distanceCm();
      sendFloat(value);
-   }
-   break;
-   case  TEMPERATURE_SENSOR:{
-     slot = readBuffer(7);
-     if(ts.getPort()!=port||ts.getSlot()!=slot){
-       ts.reset(port,slot);
-     }
-     value = ts.temperature();
-     sendFloat(value);
-   }
-   break;
-   case  LIGHT_SENSOR:
-   case  SOUND_SENSOR:
-   case  POTENTIONMETER:{
-     if(generalDevice.getPort()!=port){
-       generalDevice.reset(port);
-       pinMode(generalDevice.pin2(),INPUT);
-     }
-     value = generalDevice.aRead2();
-     sendFloat(value);
-   }
-   break;
-   case  JOYSTICK:{
-     slot = readBuffer(7);
-     if(generalDevice.getPort()!=port){
-       generalDevice.reset(port);
-       pinMode(generalDevice.pin1(),INPUT);
-       pinMode(generalDevice.pin2(),INPUT);
-     }
-     if(slot==1){
-       value = generalDevice.aRead1();
-       sendFloat(value);
-     }else if(slot==2){
-       value = generalDevice.aRead2();
-       sendFloat(value);
-     }
-   }
-   break;
-   case  INFRARED:{
-     if(ir.getPort()!=port){
-       ir.reset(port);
-     }
-     sendFloat(irRead);
-   }
-   break;
-   case  PIRMOTION:{
-     if(generalDevice.getPort()!=port){
-       generalDevice.reset(port);
-       pinMode(generalDevice.pin2(),INPUT);
-     }
-     value = generalDevice.dRead2();
-     sendFloat(value);
-   }
-   break;
-   case  LINEFOLLOWER:{
-     if(generalDevice.getPort()!=port){
-       generalDevice.reset(port);
-         pinMode(generalDevice.pin1(),INPUT);
-         pinMode(generalDevice.pin2(),INPUT);
-     }
-     value = generalDevice.dRead1()*2+generalDevice.dRead2();
-     sendFloat(value);
-   }
-   break;
-   case LIMITSWITCH:{
-     slot = readBuffer(7);
-     if(generalDevice.getPort()!=port||generalDevice.getSlot()!=slot){
-       generalDevice.reset(port,slot);
-     }
-     if(slot==1){
-       pinMode(generalDevice.pin1(),INPUT_PULLUP);
-       value = generalDevice.dRead1();
-     }else{
-       pinMode(generalDevice.pin2(),INPUT_PULLUP);
-       value = generalDevice.dRead2();
-     }
-     sendFloat(value);  
-   }
-   break;
-   case  GYRO:{
-       int axis = readBuffer(7);
-       gyro.update();
-       if(axis==1){
-         value = gyro.getAngleX();
-         sendFloat(value);
-       }else if(axis==2){
-         value = gyro.getAngleY();
-         sendFloat(value);
-       }else if(axis==3){
-         value = gyro.getAngleZ();
-         sendFloat(value);
-       }
-   }
-   break;
-   case  VERSION:{
-     sendString(mVersion);
-   }
-   break;
-   case  DIGITAL:{
-     pinMode(pin,INPUT);
-     sendFloat(digitalRead(pin));
-   }
-   break;
-   case  ANALOG:{
-     pin = analogs[pin];
-     pinMode(pin,INPUT);
-     sendFloat(analogRead(pin));
-   }
-   break;
-   case TIMER:{
-     sendFloat((float)currentTime);
    }
    break;
   }
